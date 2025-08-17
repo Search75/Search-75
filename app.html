@@ -1,0 +1,132 @@
+<!doctype html><html lang="bn"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Search • App</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}html,body{height:100%}
+body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif;background:
+radial-gradient(1200px 600px at 10% -10%,#1b2a5a55,transparent),
+radial-gradient(900px 500px at 110% 20%,#0fd8b855,transparent),
+linear-gradient(180deg,#060b18,#0b1220);color:#e9eef7;display:flex;align-items:center;justify-content:center;padding:10px}
+#app{width:100%;max-width:1200px;height:95vh;background:linear-gradient(180deg,#0d1730,#0c1530 60%,#0a132c);border:1px solid #1f2a47;border-radius:16px;box-shadow:0 20px 60px #0008, inset 0 1px 0 #fff1;display:flex;flex-direction:column;overflow:hidden}
+header{display:flex;align-items:center;gap:12px;padding:14px 16px;background:linear-gradient(90deg,#0f1e45,#0a1533);border-bottom:1px solid #1e2a4b}
+.brand{display:flex;align-items:center;gap:10px;font-weight:800}.logo{width:34px;height:34px;border-radius:8px;background:linear-gradient(135deg,#6c9ef8,#3754ff)}
+.userbox{display:flex;align-items:center;gap:10px;margin-left:auto}
+.btn{background:linear-gradient(180deg,#3d6bff,#2f58e8);color:#fff;border:none;padding:10px 14px;border-radius:10px;cursor:pointer;font-weight:700;box-shadow:0 8px 18px #2f58e855}
+.btn.ghost{background:#0b1430;color:#cfe0ff;border:1px solid #243869;box-shadow:none}
+.searchbar{display:flex;gap:8px;flex:1;margin:0 10px}
+.searchbar input{flex:1;background:#0b1430;border:1px solid #20315c;color:#e9eef7;padding:10px;border-radius:10px}
+main{flex:1;display:grid;grid-template-columns:260px 1fr 290px;gap:12px;padding:12px}
+@media(max-width:960px){main{grid-template-columns:1fr;grid-auto-rows:min-content}}
+.panel{background:#0f1830;border:1px solid #1e2a4b;border-radius:14px;display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.panel h3{padding:12px;border-bottom:1px solid #1e2a4b;background:#0e1a3d}
+.list{padding:8px;display:flex;flex-direction:column;gap:6px;overflow:auto}
+.item{display:flex;align-items:center;justify-content:space-between;gap:8px;background:#0b1430;border:1px solid #1f2f5b;border-radius:10px;padding:10px}
+.badge{padding:3px 8px;border-radius:999px;background:#12306b;color:#bfe1ff;font-size:12px;border:1px solid #2b4b9c}
+.msgarea{display:flex;flex-direction:column;min-height:0}
+.messages{flex:1;padding:10px;overflow:auto;display:flex;flex-direction:column;gap:10px;background:
+radial-gradient(600px 300px at 0% 0%,#15306a33,transparent),
+radial-gradient(400px 260px at 120% 10%,#0fd8b820,transparent)}
+.bubble{max-width:78%;padding:10px 12px;border-radius:12px;border:1px solid #21407a;background:#0b1430}
+.me{align-self:flex-end;background:linear-gradient(180deg,#2856e6,#2248c6);border-color:#2c56ff}
+.meta{opacity:.6;font-size:11px;margin-top:4px}
+.msgsend{display:flex;gap:8px;padding:10px;border-top:1px solid #1e2a4b;background:#0e1a3d}
+.msgsend input{flex:1;background:#0b1430;border:1px solid #20315c;color:#e9eef7;padding:10px;border-radius:10px}
+.note{font-size:12px;opacity:.85;padding:8px}
+.fade{animation:fade .25s ease}@keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1}}
+.small{font-size:12px}
+</style></head><body>
+<div id="app">
+  <header>
+    <div class="brand"><div class="logo"></div><div>Search</div></div>
+    <div class="searchbar">
+      <input id="globalSearch" placeholder="ইউজারনেম লিখে খুঁজুন...">
+      <button class="btn" id="btnSearch">Search</button>
+      <button class="btn ghost" id="btnAdd">+ Friend</button>
+    </div>
+    <div class="userbox">
+      <span id="who">@guest</span>
+      <button class="btn ghost" id="logout">Logout</button>
+    </div>
+  </header>
+  <main>
+    <section class="panel">
+      <h3>Friends</h3>
+      <div class="list" id="friends"></div>
+    </section>
+    <section class="panel msgarea">
+      <h3 id="chatTitle">Chat</h3>
+      <div class="messages" id="messages"></div>
+      <div class="msgsend">
+        <input id="msg" placeholder="Write a message...">
+        <button class="btn" id="send">Send</button>
+      </div>
+    </section>
+    <section class="panel">
+      <h3>Friend Requests</h3>
+      <div class="list" id="incoming"></div>
+      <div class="list" id="outgoing"></div>
+    </section>
+  </main>
+</div>
+<script>
+const LS="search_app_db_v1",CUR="search_current_user";
+const now=()=>Date.now(),esc=s=>s.replace(/[&<>"']/g,m=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
+function db(){try{return JSON.parse(localStorage.getItem(LS))||{users:{},emails:{},friends:{},reqIn:{},reqOut:{},messages:{},otps:{}}}catch(e){return {users:{},emails:{},friends:{},reqIn:{},reqOut:{},messages:{},otps:{}}}}
+function save(x){localStorage.setItem(LS,JSON.stringify(x))}
+function cid(a,b){return [a,b].sort().join("::")}
+let me=localStorage.getItem(CUR),peer=null; if(!me){location.href="login.html"}
+document.getElementById("who").textContent="@"+me;
+
+function renderFriends(){
+  const box=friends; box.innerHTML=""; const D=db(); const list=(D.friends[me]||[]).slice().sort();
+  if(!list.length){ box.innerHTML='<div class="note">এখনও কোনো ফ্রেন্ড নেই। সার্চ করে রিকোয়েস্ট পাঠান।</div>'; return;}
+  list.forEach(u=>{ const el=document.createElement("div"); el.className="item";
+    el.innerHTML=`<div>@${u}</div><button class="btn ghost small">Chat</button>`;
+    el.querySelector("button").onclick=()=>openChat(u); box.appendChild(el);
+  });
+}
+function renderReq(){
+  const D=db(); incoming.innerHTML='<div class="note">Incoming</div>'; outgoing.innerHTML='<div class="note">Outgoing</div>';
+  const inc=(D.reqIn[me]||[]).slice().sort(); const out=(D.reqOut[me]||[]).slice().sort();
+  if(!inc.length) incoming.innerHTML+='<div class="note">কোনো ইনকামিং নেই</div>';
+  if(!out.length) outgoing.innerHTML+='<div class="note">কোনো আউটগোয়িং নেই</div>';
+  inc.forEach(u=>{ const el=document.createElement("div"); el.className="item";
+    el.innerHTML=`<div>@${u}</div><div><button class="btn small">Accept</button> <button class="btn ghost small">Reject</button></div>`;
+    const [a,r]=el.querySelectorAll("button");
+    a.onclick=()=>{ const D=db(); D.reqIn[me]=(D.reqIn[me]||[]).filter(x=>x!==u); D.reqOut[u]=(D.reqOut[u]||[]).filter(x=>x!==me);
+      D.friends[me]=Array.from(new Set([...(D.friends[me]||[]),u])); D.friends[u]=Array.from(new Set([...(D.friends[u]||[]),me])); save(D); renderFriends(); renderReq(); };
+    r.onclick=()=>{ const D=db(); D.reqIn[me]=(D.reqIn[me]||[]).filter(x=>x!==u); D.reqOut[u]=(D.reqOut[u]||[]).filter(x=>x!==me); save(D); renderReq(); };
+    incoming.appendChild(el);
+  });
+  out.forEach(u=>{ const el=document.createElement("div"); el.className="item"; el.innerHTML=`<div>@${u}</div><span class="badge">Pending</span>`; outgoing.appendChild(el); });
+}
+function openChat(u){ peer=u; chatTitle.textContent="Chat with @"+u; renderMsgs(); }
+function renderMsgs(){
+  const box=messages; box.innerHTML="";
+  if(!peer){ box.innerHTML='<div class="note">কাউকে সিলেক্ট করে চ্যাট শুরু করুন।</div>'; return;}
+  const D=db(),id=cid(me,peer),arr=(D.messages[id]||[]).slice(-200);
+  arr.forEach(m=>{ const el=document.createElement("div"); el.className="bubble fade"+(m.from===me?" me":""); const t=new Date(m.ts).toLocaleTimeString();
+    el.innerHTML=`<div>${esc(m.text)}</div><div class="meta">${m.from===me?"You":"@"+m.from} • ${t}</div>`; box.appendChild(el);
+  }); box.scrollTop=box.scrollHeight;
+}
+function sendMsg(){
+  const t=msg.value.trim(); if(!t||!peer)return; const D=db(),id=cid(me,peer); D.messages[id]=[...(D.messages[id]||[]),{from:me,to:peer,text:t,ts:now()}]; save(D); msg.value=""; renderMsgs();
+}
+btnSearch.onclick=()=>{
+  const q=globalSearch.value.trim(); const D=db(); if(!q) return alert("ইউজারনেম দিন");
+  if(!D.users[q]) return alert("ইউজার পাওয়া যায়নি");
+  if(q===me) return alert("নিজেকে ফ্রেন্ড করা যায় না 😄");
+  const fr=D.friends[me]||[], out=D.reqOut[me]||[], inc=D.reqIn[me]||[];
+  const state=fr.includes(q)?"already_friends":(out.includes(q)?"you_requested":(inc.includes(q)?"they_requested":"can_add"));
+  alert("User @"+q+" পাওয়া গেছে। স্টেট: "+state);
+};
+btnAdd.onclick=()=>{
+  const t=globalSearch.value.trim(); const D=db(); if(!t) return alert("সার্চ বক্সে ইউজারনেম দিন"); if(!D.users[t]) return alert("ইউজার পাওয়া যায়নি"); if(t===me) return alert("নিজেকে রিকোয়েস্ট দেয়া যাবে না");
+  const fr=D.friends[me]||[],out=D.reqOut[me]||[]; if(fr.includes(t)) return alert("ইতিমধ্যেই ফ্রেন্ড"); if(out.includes(t)) return alert("আগেই রিকোয়েস্ট পাঠানো হয়েছে");
+  D.reqOut[me]=[...out,t]; D.reqIn[t]=[...(D.reqIn[t]||[]),me]; save(D); renderReq(); alert("রিকোয়েস্ট পাঠানো হলো @"+t);
+};
+send.onclick=sendMsg; msg.addEventListener("keydown",e=>{if(e.key==="Enter")sendMsg()});
+logout.onclick=()=>{ localStorage.removeItem(CUR); location.href="login.html"; };
+function tick(){ renderReq(); if(peer) renderMsgs(); } renderFriends(); renderReq(); setInterval(tick,1000);
+</script>
+</body></html>

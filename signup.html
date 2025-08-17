@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="bn">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Search • Sign up</title>
+<script src="https://cdn.jsdelivr.net/npm/emailjs-com@3/dist/email.min.js"></script>
+<script>
+(function(){
+   emailjs.init("J_kwrx1EFBtl5gA6Y"); // এখানে তোমার EmailJS Public Key বসাও
+})();
+</script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif;
+  background:radial-gradient(900px 500px at -10% -10%,#1a2b6655,transparent),
+  linear-gradient(180deg,#070b18,#0b1220);
+  color:#e9eef7;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px}
+.card{width:min(560px,96%);background:#0f1830;border:1px solid #1e2a4b;border-radius:16px;overflow:hidden;box-shadow:0 20px 60px #0007}
+header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;background:linear-gradient(90deg,#0f1e45,#0a1533);border-bottom:1px solid #1e2a4b}
+.brand{display:flex;gap:10px;align-items:center;font-weight:800}
+.logo{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,#6c9ef8,#3754ff)}
+main{padding:18px}
+.field{display:flex;flex-direction:column;gap:6px;margin:10px 0}
+input{background:#0b1430;border:1px solid #20315c;color:#e9eef7;padding:11px;border-radius:10px;outline:none}
+input:focus{border-color:#3c64ff;box-shadow:0 0 0 3px #3c64ff33}
+.btn{background:linear-gradient(180deg,#3d6bff,#2f58e8);color:#fff;border:none;padding:11px 14px;border-radius:10px;cursor:pointer;font-weight:700;box-shadow:0 8px 18px #2f58e855}
+.btn.ghost{background:#0b1430;border:1px solid #243869;color:#cfe0ff;box-shadow:none}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.note{font-size:12px;opacity:.9}
+.success{color:#8ef1d2}
+.error{color:#ffb3b3}
+.otp{display:none;margin-top:10px;padding:10px;border:1px dashed #2a3d77;border-radius:10px;background:#0b1430}
+.otp.show{display:block}
+.fade{animation:fade .35s ease}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1}}
+</style>
+</head>
+<body>
+<div class="card fade">
+  <header>
+    <div class="brand"><div class="logo"></div>Search • Sign up</div>
+    <a class="btn ghost" href="login.html">Login</a>
+  </header>
+  <main>
+    <div class="field"><label>Username (ইউনিক)</label><input id="u" placeholder="ex: johndoe"></div>
+    <div class="field"><label>Email</label><input id="e" type="email" placeholder="ex: john@mail.com"></div>
+    <div class="field"><label>Password</label><input id="p" type="password" placeholder="কমপক্ষে ৬ অক্ষর"></div>
+    <div class="actions">
+      <button class="btn" id="signup">Create account</button>
+      <span class="note" id="msg"></span>
+    </div>
+    <div class="otp" id="otpBox">
+      <div class="note">OTP (ডেমো): <b id="otpShow"></b></div>
+      <div class="field"><label>Enter OTP</label><input id="otpin" type="number" placeholder="6-digit"></div>
+      <div class="actions">
+        <button class="btn" id="verify">Verify & Continue</button>
+        <button class="btn ghost" id="resend">Resend OTP</button>
+        <span class="note" id="otpMsg"></span>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+const LS="search_app_db_v1",CUR="search_current_user",ttl=5*60*1000;
+const now=()=>Date.now(),rnd=()=>Math.floor(100000+Math.random()*900000)+"";
+function db(){try{return JSON.parse(localStorage.getItem(LS))||{users:{},emails:{},friends:{},reqIn:{},reqOut:{},messages:{},otps:{}}}catch(e){return {users:{},emails:{},friends:{},reqIn:{},reqOut:{},messages:{},otps:{}}}}
+function save(x){localStorage.setItem(LS,JSON.stringify(x))}
+function say(el,txt,ok=true){el.textContent=txt;el.className="note "+(ok?"success":"error")}
+let pend=null;
+
+document.getElementById("signup").onclick=()=>{
+  const username=u.value.trim(), email=e.value.trim().toLowerCase(), pass=p.value;
+  const D=db(); 
+  if(!/^[a-z0-9_.]{3,20}$/i.test(username)) return say(msg,"Username 3-20, অক্ষর/সংখ্যা/_/.",false);
+  if(D.users[username]) return say(msg,"এই ইউজারনেম আগে নেয়া হয়েছে।",false);
+  if(!/^\S+@\S+\.\S+$/.test(email)) return say(msg,"সঠিক ইমেইল দিন।",false);
+  if(D.emails[email]) return say(msg,"এই ইমেইলে একাউন্ট আছে।",false);
+  if(pass.length<6) return say(msg,"পাসওয়ার্ড কমপক্ষে ৬ অক্ষর।",false);
+
+  const code=rnd(); 
+  D.otps[email]={code,for:"signup",payload:{username,email,pass},exp:now()+ttl}; 
+  save(D);
+
+  // EmailJS দিয়ে OTP পাঠানো
+  emailjs.send("service_w3lekhk","template_otp",{
+     username: username, 
+     purpose: "Sign up",
+     otp: code,
+     to_email: email
+  }).then(()=> say(msg,"OTP ইমেইলে পাঠানো হয়েছে।"), 
+           ()=> say(msg,"ইমেল পাঠাতে ব্যর্থ।",false));
+
+  otpShow.textContent=code; // ডেমোতে দেখাচ্ছে
+  document.getElementById("otpBox").classList.add("show"); 
+  pend={email,for:"signup"};
+};
+
+document.getElementById("resend").onclick=()=>{
+  if(!pend||pend.for!=="signup")return; 
+  const D=db(),code=rnd();
+  D.otps[pend.email].code=code; 
+  D.otps[pend.email].exp=now()+ttl; 
+  save(D);
+
+  emailjs.send("service_f7f5yet","template_otp",{
+     purpose: "Sign up (Resend)",
+     username: u.value.trim(),
+     otp: code,
+     to_email: pend.email
+  }).then(()=> say(otpMsg,"নতুন OTP ইমেইলে পাঠানো হয়েছে।"), 
+           ()=> say(otpMsg,"OTP পাঠাতে ব্যর্থ।",false));
+
+  otpShow.textContent=code;
+};
+
+document.getElementById("verify").onclick=()=>{
+  const code=otpin.value.trim(), D=db(); if(!pend) return;
+  const rec=D.otps[pend.email]; 
+  if(!rec||rec.for!=="signup") return say(otpMsg,"OTP নেই।",false);
+  if(now()>rec.exp) return say(otpMsg,"OTP মেয়াদ শেষ।",false);
+  if(code!==rec.code) return say(otpMsg,"ভুল OTP।",false);
+
+  const {username,email,pass}=rec.payload;
+  D.users[username]={username,email,password:pass,createdAt:now()}; 
+  D.emails[email]=username; D.friends[username]=[]; D.reqIn[username]=[]; D.reqOut[username]=[];
+  delete D.otps[email]; save(D); 
+  localStorage.setItem(CUR,username); 
+  location.href="app.html";
+};
+</script>
+</body>
+</html>
+
+

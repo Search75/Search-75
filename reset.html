@@ -1,0 +1,98 @@
+<!doctype html><html lang="bn"><head>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Search • Reset password</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif;background:
+radial-gradient(900px 500px at -10% -10%,#1a2b6655,transparent),
+linear-gradient(180deg,#070b18,#0b1220);color:#e9eef7;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px}
+.card{width:min(520px,96%);background:#0f1830;border:1px solid #1e2a4b;border-radius:16px;overflow:hidden;box-shadow:0 20px 60px #0007}
+header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;background:linear-gradient(90deg,#0f1e45,#0a1533);border-bottom:1px solid #1e2a4b}
+.brand{display:flex;gap:10px;align-items:center;font-weight:800}.logo{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,#6c9ef8,#3754ff)}
+main{padding:18px}
+.field{display:flex;flex-direction:column;gap:6px;margin:10px 0}
+input{background:#0b1430;border:1px solid #20315c;color:#e9eef7;padding:11px;border-radius:10px;outline:none}
+input:focus{border-color:#3c64ff;box-shadow:0 0 0 3px #3c64ff33}
+.btn{background:linear-gradient(180deg,#3d6bff,#2f58e8);color:#fff;border:none;padding:11px 14px;border-radius:10px;cursor:pointer;font-weight:700;box-shadow:0 8px 18px #2f58e855}
+.btn.ghost{background:#0b1430;border:1px solid #243869;color:#cfe0ff;box-shadow:none}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.note{font-size:12px;opacity:.9}.success{color:#8ef1d2}.error{color:#ffb3b3}
+.otp{display:none;margin-top:10px;padding:10px;border:1px dashed #2a3d77;border-radius:10px;background:#0b1430}.otp.show{display:block}
+.fade{animation:fade .35s ease}@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1}}
+</style></head>
+<body>
+<div class="card fade">
+  <header>
+    <div class="brand"><div class="logo"></div>Reset Password</div>
+  </header>
+  <main>
+    <div class="field"><label>Email</label><input id="e" type="email"></div>
+    <div class="actions">
+      <button class="btn" id="send">Send OTP</button>
+      <span class="note" id="msg"></span>
+    </div>
+    <div class="otp" id="otpBox">
+      <div class="note">OTP: <b id="otpShow"></b></div>
+      <div class="field"><label>Enter OTP</label><input id="otpin" type="number"></div>
+      <div class="field"><label>New Password</label><input id="np" type="password"></div>
+      <div class="actions">
+        <button class="btn" id="verify">Verify & Change</button>
+        <span class="note" id="otpMsg"></span>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/9.6.11/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.6.11/firebase-firestore-compat.js"></script>
+<!-- EmailJS -->
+<script src="https://cdn.jsdelivr.net/npm/emailjs-com@3/dist/email.min.js"></script>
+
+<script>
+const firebaseConfig={ /* তোমার একই config */ 
+  apiKey:"AIzaSyCEIZmnV6vlnDHuXkR55czI7ZaNmDndRSk",
+  authDomain:"search-75.firebaseapp.com",
+  projectId:"search-75",
+  storageBucket:"search-75.firebasestorage.app",
+  messagingSenderId:"1080878455131",
+  appId:"1:1080878455131:web:87e15a4e2c1cb02ecb227e",
+  measurementId:"G-YGLHPK8DHW"
+};
+firebase.initializeApp(firebaseConfig);
+const db=firebase.firestore();
+(function(){emailjs.init("YOUR_PUBLIC_KEY");})(); // ← public key বসাও
+
+const ttl=5*60*1000,now=()=>Date.now(),rnd=()=>Math.floor(100000+Math.random()*900000)+"";
+let pend=null;
+function say(el,txt,ok=true){el.textContent=txt;el.className="note "+(ok?"success":"error")}
+
+send.onclick=async ()=>{
+  const email=e.value.trim().toLowerCase(), msg=document.getElementById("msg");
+  const snap=await db.collection("users").where("email","==",email).limit(1).get();
+  if(snap.empty) return say(msg,"এই ইমেইলে কোন একাউন্ট নেই",false);
+  const user=snap.docs[0].data();
+
+  const code=rnd(); pend={id:snap.docs[0].id,email,code,exp:now()+ttl};
+  otpShow.textContent=code;
+
+  emailjs.send("service_f7f5yet","template_password",{ // ← এখানে তোমার password reset template ব্যবহার করো
+    to_email: email, otp_code: code, to_name:user.username
+  }).then(()=>say(msg,"OTP পাঠানো হয়েছে")).catch(()=>say(msg,"ব্যর্থ",false));
+
+  otpBox.classList.add("show");
+};
+
+verify.onclick=async ()=>{
+  const code=otpin.value.trim(), np=document.getElementById("np").value, otpMsg=document.getElementById("otpMsg");
+  if(!pend) return;
+  if(now()>pend.exp) return say(otpMsg,"OTP মেয়াদ শেষ",false);
+  if(code!==pend.code) return say(otpMsg,"ভুল OTP",false);
+  if(np.length<6) return say(otpMsg,"নতুন পাসওয়ার্ড ৬ অক্ষরের বেশি হতে হবে",false);
+
+  await db.collection("users").doc(pend.id).update({password:np});
+  say(otpMsg,"পাসওয়ার্ড আপডেট হয়েছে ✅");
+  setTimeout(()=>location.href="login.html",1500);
+};
+</script>
+</body>
+</html>
